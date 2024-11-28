@@ -3,7 +3,10 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - main
+      - testing
+      - pre-release
+      - alpha
+      - beta
   workflow_dispatch:
     inputs:
       tag_name:
