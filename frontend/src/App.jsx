@@ -1,82 +1,45 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Terminal } from 'xterm';
-import 'xterm/css/xterm.css';
+import React, { useEffect, useRef } from 'react';
+import { Client as GuacamoleClient } from '@guacamole-client/client';
+import { Tunnel as GuacamoleTunnel } from '@guacamole-client/tunnel';
 
 const App = () => {
-  const terminalRef = useRef(null);
-  const terminal = useRef(null);
-  const socket = useRef(null);
-  const inputBuffer = useRef('');
+    const terminalRef = useRef(null);
+    const guacClient = useRef(null);
 
-  useEffect(() => {
-    // Initialize xterm.js Terminal
-    terminal.current = new Terminal({
-      cursorBlink: true,
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#ffffff',
-      },
-      macOptionIsMeta: true, // Enable Meta key for Mac users
-      allowProposedApi: true, // Allow advanced terminal features
-    });
+    useEffect(() => {
+        // Create a Guacamole tunnel (change to your Guacamole server WebSocket URL)
+        const tunnel = new GuacamoleTunnel('ws://192.210.197.55:4822/tunnel');
+        guacClient.current = new GuacamoleClient(tunnel);
 
-    terminal.current.open(terminalRef.current);
+        // Attach the client display to the terminal div
+        guacClient.current.getDisplay().onresize = () => {
+            if (terminalRef.current) {
+                const display = guacClient.current.getDisplay().getElement();
+                terminalRef.current.innerHTML = '';
+                terminalRef.current.appendChild(display);
+            }
+        };
 
-    // Connect to the WebSocket server
-    socket.current = new WebSocket('ws://192.210.197.55:3501');
+        // Connect to the Guacamole server with the connection ID
+        guacClient.current.connect("token=your-connection-token");
 
-    // WebSocket Event Handlers
-    socket.current.onopen = () => {
-      terminal.current.writeln('Connected to WebSocket server.');
-    };
+        // Cleanup on component unmount
+        return () => {
+            if (guacClient.current) {
+                guacClient.current.disconnect();
+            }
+        };
+    }, []);
 
-    socket.current.onmessage = (event) => {
-      terminal.current.write(event.data);
-    };
-
-    socket.current.onerror = (error) => {
-      terminal.current.writeln(`WebSocket error: ${error.message}`);
-    };
-
-    socket.current.onclose = () => {
-      terminal.current.writeln('Disconnected from WebSocket server.');
-    };
-
-    // Handle terminal input
-    terminal.current.onData((data) => {
-      if (data === '\r') {
-        // On Enter
-        if (inputBuffer.current.trim() !== '') {
-          socket.current.send(inputBuffer.current + '\n'); // Send the buffer to the server
-        }
-        inputBuffer.current = ''; // Clear the buffer
-      } else if (data === '\u007F') {
-        // Handle Backspace
-        if (inputBuffer.current.length > 0) {
-          inputBuffer.current = inputBuffer.current.slice(0, -1);
-          terminal.current.write('\b \b');
-        }
-      } else {
-        // Append input to buffer and display
-        inputBuffer.current += data;
-        terminal.current.write(data);
-      }
-    });
-
-    return () => {
-      terminal.current.dispose();
-      if (socket.current) {
-        socket.current.close();
-      }
-    };
-  }, []);
-
-  return (
-    <div>
-      <h1>SSH Web Terminal</h1>
-      <div ref={terminalRef} style={{ height: '80vh', width: '100%' }}></div>
-    </div>
-  );
+    return (
+        <div>
+            <h1>SSH Web Terminal (Guacamole)</h1>
+            <div
+                ref={terminalRef}
+                style={{ height: '80vh', width: '100%', background: '#000' }}
+            ></div>
+        </div>
+    );
 };
 
 export default App;
